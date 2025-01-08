@@ -60,6 +60,8 @@ namespace HatLoader
                 var hatSpritePaths = new Dictionary<string, List<string>>();
                 var hatSpriteDefs = new List<tk2dSpriteDefinition>();
 
+                var hatRoomSprite = "";
+
                 SpapiDataReader.HandleLines(l, new()
                 {
                     { "name", x =>
@@ -96,6 +98,12 @@ namespace HatLoader
                     { "northeastsprites", x =>
                     {
                         hatSpritePaths["northeast"] = x;
+                        return true;
+                    } },
+
+                    { "hatroomsprite", x =>
+                    {
+                        hatRoomSprite = x.LastOrDefault();
                         return true;
                     } },
 
@@ -222,47 +230,20 @@ namespace HatLoader
 
                     for (var i = 0; i < paths.Count; i++)
                     {
-                        var path = paths[i].Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+                        var def = LoadHatSpriteDefinition(dir, paths[i], $"{name.ToID()}_{direction}_{i + 1:D3}", file, out _);
 
-                        if (!path.EndsWith(".png"))
-                            path += ".png";
-
-                        var tPath = Path.Combine(dir, path);
-
-                        if (!File.Exists(tPath))
-                        {
-                            Debug.LogError($"Error loading sprites for hat {file}: file {paths[i]} doesn't exist.");
+                        if (def == null)
                             continue;
-                        }
-
-                        var ba = File.ReadAllBytes(tPath);
-
-                        var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false)
-                        {
-                            filterMode = FilterMode.Point,
-                            name = $"{name.ToID()}_{direction}_{i + 1:D3}"
-                        };
-
-                        try
-                        {
-                            if (!tex.LoadImage(ba))
-                            {
-                                Debug.LogError($"Error loading sprites for hat {file}: file {path} is not a valid texture.");
-                                continue;
-                            }
-                        }
-                        catch
-                        {
-                            Debug.LogError($"Error loading sprites for hat {file}: file {path} is not a valid texture.");
-                            continue;
-                        }
-
-                        var spriteId = SpriteBuilder.AddSpriteToCollection(tex, HatLoaderCollection);
-                        var def = HatLoaderCollection.spriteDefinitions[spriteId];
 
                         hatSpriteDefs.Add(def);
                     }
                 }
+
+                var defaultSpriteId = -1;
+                var defaultSpriteDef = (tk2dSpriteDefinition)null;
+
+                if (!string.IsNullOrEmpty(hatRoomSprite))
+                    defaultSpriteDef = LoadHatSpriteDefinition(dir, hatRoomSprite, $"{name.ToID()}_default_001", file, out defaultSpriteId);
 
                 if(hatSpriteDefs.Count <= 0)
                 {
@@ -286,12 +267,62 @@ namespace HatLoader
                         flipHorizontalWithPlayer);
 
                     h.SetupHatSprites(null, hatSpriteDefs, fps);
+
+                    if (defaultSpriteDef != null)
+                        defaultSpriteDef.colliderVertices = [.. h.sprite.CurrentSprite.colliderVertices];
+
+                    if (defaultSpriteId >= 0)
+                        h.sprite.SetSprite(HatLoaderCollection, defaultSpriteId);
                 }
                 catch(Exception ex)
                 {
                     Debug.LogError($"Error loading hat {file}: {ex.Message}");
                 }
             }
+        }
+
+        public static tk2dSpriteDefinition LoadHatSpriteDefinition(string hatDirectory, string spriteName, string definitionName, string hatFile, out int spriteId)
+        {
+            spriteId = -1;
+            var path = spriteName.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+
+            if (!path.EndsWith(".png"))
+                path += ".png";
+
+            var tPath = Path.Combine(hatDirectory, path);
+
+            if (!File.Exists(tPath))
+            {
+                Debug.LogError($"Error loading sprites for hat {hatFile}: file {spriteName} doesn't exist.");
+                return null;
+            }
+
+            var ba = File.ReadAllBytes(tPath);
+
+            var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+                name = definitionName
+            };
+
+            try
+            {
+                if (!tex.LoadImage(ba))
+                {
+                    Debug.LogError($"Error loading sprites for hat {hatFile}: file {path} is not a valid texture.");
+                    return null;
+                }
+            }
+            catch
+            {
+                Debug.LogError($"Error loading sprites for hat {hatFile}: file {path} is not a valid texture.");
+                return null;
+            }
+
+            spriteId = SpriteBuilder.AddSpriteToCollection(tex, HatLoaderCollection);
+            var def = HatLoaderCollection.spriteDefinitions[spriteId];
+
+            return def;
         }
     }
 }
