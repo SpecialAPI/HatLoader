@@ -1,5 +1,6 @@
 ﻿using Alexandria.cAPI;
 using Alexandria.ItemAPI;
+using Alexandria.SoundAPI;
 using BepInEx;
 using System;
 using System.Collections.Generic;
@@ -52,6 +53,13 @@ namespace HatLoader
 
                 var hatRoomSprite = "";
 
+                var shaderName = "";
+                var materialPropertiesFloat = new Dictionary<string, float>();
+                var materialPropertiesInt = new Dictionary<string, int>();
+                var materialPropertiesColor = new Dictionary<string, Color>();
+                var materialPropertiesVector = new Dictionary<string, Vector4>();
+                var materialPropertiesTexture = new Dictionary<string, string>();
+
                 SpapiDataReader.HandleLines(l, new()
                 {
                     { "name", x =>
@@ -94,6 +102,176 @@ namespace HatLoader
                     { "hatroomsprite", x =>
                     {
                         hatRoomSprite = x.LastOrDefault();
+                        return true;
+                    } },
+
+                    { "shadername", x =>
+                    {
+                        shaderName = x.LastOrDefault();
+                        return true;
+                    } },
+                    { "shaderfloatproperties", x =>
+                    {
+                        if(x.Count % 2 != 0)
+                        {
+                            return false;
+                        }
+
+                        for(var i = 0; i < x.Count; i += 2)
+                        {
+                            var propName = x[i];
+
+                            if (string.IsNullOrEmpty(propName))
+                            {
+                                return false;
+                            }
+
+                            var propValue = x[i + 1];
+
+                            if(!float.TryParse(propValue, out var val))
+                            {
+                                return false;
+                            }
+
+                            materialPropertiesFloat[propName] = val;
+                        }
+
+                        return true;
+                    } },
+                    { "shaderintproperties", x =>
+                    {
+                        if(x.Count % 2 != 0)
+                        {
+                            return false;
+                        }
+
+                        for(var i = 0; i < x.Count; i += 2)
+                        {
+                            var propName = x[i];
+
+                            if (string.IsNullOrEmpty(propName))
+                            {
+                                return false;
+                            }
+
+                            var propValue = x[i + 1];
+
+                            if(!int.TryParse(propValue, out var val))
+                            {
+                                return false;
+                            }
+
+                            materialPropertiesFloat[propName] = val;
+                        }
+
+                        return true;
+                    } },
+                    { "shadercolorproperties", x =>
+                    {
+                        if(x.Count % 2 != 0)
+                        {
+                            return false;
+                        }
+
+                        for(var i = 0; i < x.Count; i += 2)
+                        {
+                            var propName = x[i];
+
+                            if (string.IsNullOrEmpty(propName))
+                            {
+                                return false;
+                            }
+
+                            var propValue = x[i + 1];
+
+                            if(!ColorUtility.TryParseHtmlString(propValue, out var val))
+                            {
+                                return false;
+                            }
+
+                            materialPropertiesColor[propName] = val;
+                        }
+
+                        return true;
+                    } },
+                    { "shadervectorproperties", x =>
+                    {
+                        if(x.Count % 2 != 0)
+                        {
+                            return false;
+                        }
+
+                        for(var i = 0; i < x.Count; i += 2)
+                        {
+                            var propName = x[i];
+
+                            if (string.IsNullOrEmpty(propName))
+                            {
+                                return false;
+                            }
+
+                            var propValue = x[i + 1];
+
+                            var split = propValue.Split([' '], StringSplitOptions.RemoveEmptyEntries);
+
+                            if(split.Length <= 0 || split.Length > 4)
+                            {
+                                return false;
+                            }
+
+                            var vecX = 0f;
+                            var vecY = 0f;
+                            var vecZ = 0f;
+                            var vecW = 0f;
+
+                            if(!float.TryParse(split[0], out vecX))
+                            {
+                                return false;
+                            }
+                            if(split.Length > 1 && !float.TryParse(split[1], out vecY))
+                            {
+                                return false;
+                            }
+                            if(split.Length > 2 && !float.TryParse(split[2], out vecZ))
+                            {
+                                return false;
+                            }
+                            if(split.Length > 3 && !float.TryParse(split[3], out vecW))
+                            {
+                                return false;
+                            }
+
+                            materialPropertiesVector[propName] = new(vecX, vecY, vecZ, vecW);
+                        }
+
+                        return true;
+                    } },
+                    { "shadertextureproperties", x =>
+                    {
+                        if(x.Count % 2 != 0)
+                        {
+                            return false;
+                        }
+
+                        for(var i = 0; i < x.Count; i += 2)
+                        {
+                            var propName = x[i];
+
+                            if (string.IsNullOrEmpty(propName))
+                            {
+                                return false;
+                            }
+
+                            var propValue = x[i + 1];
+
+                            if (string.IsNullOrEmpty(propValue))
+                            {
+                                return false;
+                            }
+
+                            materialPropertiesTexture[propName] = propValue;
+                        }
+
                         return true;
                     } },
 
@@ -213,6 +391,43 @@ namespace HatLoader
                     continue;
                 }
 
+                var overrideMaterial = (Material)null;
+                if (!string.IsNullOrEmpty(shaderName))
+                {
+                    var shader = ShaderCache.Acquire(shaderName);
+
+                    if (shader != null)
+                    {
+                        overrideMaterial = new(shader);
+
+                        foreach(var kvp in materialPropertiesFloat)
+                            overrideMaterial.SetFloat(kvp.Key, kvp.Value);
+
+                        foreach (var kvp in materialPropertiesInt)
+                            overrideMaterial.SetInt(kvp.Key, kvp.Value);
+
+                        foreach (var kvp in materialPropertiesColor)
+                            overrideMaterial.SetColor(kvp.Key, kvp.Value);
+
+                        foreach (var kvp in materialPropertiesVector)
+                            overrideMaterial.SetVector(kvp.Key, kvp.Value);
+
+                        foreach (var kvp in materialPropertiesTexture)
+                        {
+                            var tex = LoadHatTexture(dir, kvp.Value, $"{name.ToID()}_{kvp.Key}", file);
+
+                            if (tex == null)
+                            {
+                                continue;
+                            }
+
+                            overrideMaterial.SetTexture(kvp.Key, tex);
+                        }
+                    }
+                    else
+                        Debug.LogError($"Error loading hat {file}: \"{shaderName}\" isn't a valid shader.");
+                }
+
                 foreach (var kvp in hatSpritePaths)
                 {
                     var direction = kvp.Key;
@@ -220,7 +435,7 @@ namespace HatLoader
 
                     for (var i = 0; i < paths.Count; i++)
                     {
-                        var def = LoadHatSpriteDefinition(dir, paths[i], $"{name.ToID()}_{direction}_{i + 1:D3}", file, out _);
+                        var def = LoadHatSpriteDefinition(dir, paths[i], $"{name.ToID()}_{direction}_{i + 1:D3}", file, overrideMaterial, out _);
 
                         if (def == null)
                             continue;
@@ -233,7 +448,7 @@ namespace HatLoader
                 var defaultSpriteDef = (tk2dSpriteDefinition)null;
 
                 if (!string.IsNullOrEmpty(hatRoomSprite))
-                    defaultSpriteDef = LoadHatSpriteDefinition(dir, hatRoomSprite, $"{name.ToID()}_default_001", file, out defaultSpriteId);
+                    defaultSpriteDef = LoadHatSpriteDefinition(dir, hatRoomSprite, $"{name.ToID()}_default_001", file, overrideMaterial, out defaultSpriteId);
 
                 if (hatSpriteDefs.Count <= 0)
                 {
@@ -271,9 +486,59 @@ namespace HatLoader
             }
         }
 
-        public static tk2dSpriteDefinition LoadHatSpriteDefinition(string hatDirectory, string spriteName, string definitionName, string hatFile, out int spriteId)
+        public static void LoadHatSoundbanks()
+        {
+            foreach(var f in Directory.GetFiles(Paths.PluginPath, "*-hatsb.bnk", SearchOption.AllDirectories))
+            {
+                var ba = File.ReadAllBytes(f);
+                var filename = Path.GetFileName(f);
+
+                try
+                {
+                    SoundManager.LoadSoundbankFromBytes(ba, filename);
+                }
+                catch(Exception ex)
+                {
+                    Debug.LogError($"Error loading hat soundbank {filename}: {ex.Message}");
+                }
+            }
+        }
+
+        public static tk2dSpriteDefinition LoadHatSpriteDefinition(string hatDirectory, string spriteName, string definitionName, string hatFile, Material overrideMaterial, out int spriteId)
         {
             spriteId = -1;
+            var tex = LoadHatTexture(hatDirectory, spriteName, definitionName, hatFile);
+
+            if (tex == null)
+                return null;
+
+            spriteId = SpriteBuilder.AddSpriteToCollection(tex, HatLoaderCollection);
+            var def = HatLoaderCollection.spriteDefinitions[spriteId];
+
+            if(overrideMaterial != null)
+            {
+                if (def.material != null)
+                {
+                    def.material = new(overrideMaterial)
+                    {
+                        mainTexture = def.material.mainTexture
+                    };
+                }
+
+                if (def.materialInst != null)
+                {
+                    def.materialInst = new(overrideMaterial)
+                    {
+                        mainTexture = def.material.mainTexture
+                    };
+                }
+            }
+
+            return def;
+        }
+
+        public static Texture2D LoadHatTexture(string hatDirectory, string spriteName, string textureName, string hatFile)
+        {
             var path = spriteName.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
 
             if (!path.EndsWith(".png"))
@@ -288,11 +553,10 @@ namespace HatLoader
             }
 
             var ba = File.ReadAllBytes(tPath);
-
             var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false)
             {
                 filterMode = FilterMode.Point,
-                name = definitionName
+                name = textureName
             };
 
             try
@@ -309,10 +573,7 @@ namespace HatLoader
                 return null;
             }
 
-            spriteId = SpriteBuilder.AddSpriteToCollection(tex, HatLoaderCollection);
-            var def = HatLoaderCollection.spriteDefinitions[spriteId];
-
-            return def;
+            return tex;
         }
     }
 }

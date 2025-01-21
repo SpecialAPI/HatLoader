@@ -26,6 +26,7 @@ namespace HatLoader
         public void GMStart(GameManager gm)
         {
             Loader.LoadHats();
+            Loader.LoadHatSoundbanks();
             AutoHatManager.Init();
 
             var harmony = new Harmony(GUID);
