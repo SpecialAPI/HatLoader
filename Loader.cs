@@ -184,12 +184,36 @@ namespace HatLoader
 
                             var propValue = x[i + 1];
 
-                            if(!ColorUtility.TryParseHtmlString(propValue, out var val))
+                            var split = propValue.Split([' '], StringSplitOptions.RemoveEmptyEntries);
+
+                            if(split.Length <= 0 || split.Length > 4)
                             {
                                 return false;
                             }
 
-                            materialPropertiesColor[propName] = val;
+                            var r = 0f;
+                            var g = 0f;
+                            var b = 0f;
+                            var a = 1f;
+
+                            if(!float.TryParse(split[0], out r))
+                            {
+                                return false;
+                            }
+                            if(split.Length > 1 && !float.TryParse(split[1], out g))
+                            {
+                                return false;
+                            }
+                            if(split.Length > 2 && !float.TryParse(split[2], out b))
+                            {
+                                return false;
+                            }
+                            if(split.Length > 3 && !float.TryParse(split[3], out a))
+                            {
+                                return false;
+                            }
+
+                            materialPropertiesColor[propName] = new(r, g, b, a);
                         }
 
                         return true;
