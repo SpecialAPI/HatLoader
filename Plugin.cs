@@ -25,6 +25,7 @@ namespace HatLoader
 
         public void GMStart(GameManager gm)
         {
+            Loader.LoadHatAssetBundles();
             Loader.LoadHats();
             Loader.LoadHatSoundbanks();
             AutoHatManager.Init();

@@ -510,6 +510,36 @@ namespace HatLoader
             }
         }
 
+        public static void LoadHatAssetBundles()
+        {
+            var searchFolder = Application.platform switch
+            {
+                RuntimePlatform.LinuxPlayer or RuntimePlatform.LinuxEditor => "HatBundlesLinux",
+                RuntimePlatform.OSXPlayer or RuntimePlatform.OSXEditor => "HatBundlesMacOS",
+                _ => "HatBundlesWindows"
+            };
+            
+            foreach(var d in Directory.GetDirectories(Paths.PluginPath, searchFolder, SearchOption.AllDirectories))
+            {
+                foreach(var f in Directory.GetFiles(d, "*-hatbundle", SearchOption.TopDirectoryOnly))
+                {
+                    var ba = File.ReadAllBytes(f);
+                    var bu = AssetBundle.LoadFromMemory(ba);
+
+                    foreach(var s in bu.LoadAllAssets<Shader>())
+                    {
+                        if (s == null)
+                            continue;
+
+                        if (ShaderCache.m_shaderCache.ContainsKey(s.name))
+                            continue;
+
+                        ShaderCache.m_shaderCache[s.name] = s;
+                    }
+                }
+            }
+        }
+
         public static void LoadHatSoundbanks()
         {
             foreach(var f in Directory.GetFiles(Paths.PluginPath, "*-hatsb.bnk", SearchOption.AllDirectories))
